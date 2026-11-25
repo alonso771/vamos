@@ -585,13 +585,16 @@
   /* the question for DeepSeek: system + user message, in Chinese, so that it answers in Chinese */
   function aiPrompt(s, res) {
     var clean = function (t) { return String(t || '').replace(/\s+/g, ' ').trim(); };
-    var others = [];
-    (s.alt || []).concat(userAlts(s.id)).forEach(function (p) { if (others.length < 6) Check.expand(p, 3).slice(0, 2).forEach(function (x) { if (others.length < 6 && x !== s.es) others.push(x); }); });
+    /* 1.3.2: compared with the closest accepted answer (the one shown as "Closest correct answer"), not the model answer:
+       the explanation then keeps the learner's own wording and names only what has to change */
+    var target = clean(res.closest || s.es), model = clean(s.es), others = [];
+    (s.alt || []).concat(userAlts(s.id)).forEach(function (p) { if (others.length < 6) Check.expand(p, 3).slice(0, 2).forEach(function (x) { x = clean(x); if (others.length < 6 && x !== model && x !== target && others.indexOf(x) < 0) others.push(x); }); });
     var sys = '你是一位简洁、友好的西班牙语老师，学生的母语是中文。学生把一个中文句子翻译成了西班牙语，答案被判为错误。' +
-      '请比较学生的答案和正确答案，用简体中文解释错在哪里：指出具体不同的西班牙语单词，并说明原因（用词错误、缺少或多余的词、词序、动词变位、时态、性数一致、冠词、介词、拼写或重音符号等），以及正确的形式是什么意思。' +
+      '请把学生的答案和“最接近的正确答案”进行比较（这是所有可接受的答案中与学生的答案最相似的一个），用简体中文解释错在哪里：以最接近的正确答案为准，尽量保留学生自己的用词和句子结构，只指出需要改动的西班牙语单词，并说明原因（用词错误、缺少或多余的词、词序、动词变位、时态、性数一致、冠词、介词、拼写或重音符号等），以及正确的形式是什么意思。不要要求学生改成标准答案的说法。' +
       '西班牙语单词和句子保持西班牙语原文。用2到4个简短的要点，总共不超过150个汉字（西班牙语单词不计）。如果学生的答案其实也是正确的翻译，请直接说明。不要问候，也不要总结。必须用中文回答。';
-    var user = '中文句子：' + clean(s.zh) + '\n正确答案：' + clean(s.es) + (others.length ? '\n其他可以接受的答案：' + others.map(clean).join(' / ') : '') +
-      '\n学生的答案：' + clean(res.raw) + '\n\n请用中文解释：学生的答案为什么不对？';
+    var user = '中文句子：' + clean(s.zh) + '\n最接近的正确答案：' + target + (model !== target ? '\n标准答案（仅供参考）：' + model : '') +
+      (others.length ? '\n其他可以接受的答案：' + others.join(' / ') : '') +
+      '\n学生的答案：' + clean(res.raw) + '\n\n请用中文解释：和最接近的正确答案相比，学生的答案哪里不对？';
     return JSON.stringify([{ role: 'system', content: sys }, { role: 'user', content: user }]);
   }
   function aiFormat(t) {
@@ -1486,7 +1489,7 @@
       openSheet('<h3>Vamos ' + VERSION + (WEB ? ' · web app' : '') + '</h3><p>Spanish sentence practice for Chinese speakers: 673 sentences in 19 topics, written in Spanish with Latin American Spanish as the main form (forms from Spain are accepted too), and flash cards with 5,100 common words.</p>' +
         (WEB ? '<div class="r-label">Sentence recordings</div><p class="credits">' + SAY_CREDIT + '</p>' : '') +
         ('<div class="r-label">Word recordings</div><p class="credits">Native speakers on Lingua Libre (lingualibre.org), from Wikimedia Commons: ' + esc(FC.credits || 'see licenses/lingualibre.txt') +
-        '. Licences CC BY-SA 4.0, CC BY 4.0 or CC0, as listed per file in licenses/lingualibre.txt inside the app. Silence trimmed, loudness evened, re-encoded.</p>') +
+        '. Licences CC BY-SA 4.0, CC BY 4.0 or CC0, as listed per file in ' + (WEB ? '<a href="licenses/lingualibre.txt" target="_blank" rel="noopener">licenses/lingualibre.txt</a>' : 'licenses/lingualibre.txt inside the app') + '. Silence trimmed, loudness evened, re-encoded.</p>') +
         (WEB ? '<p class="credits">Words without a recording, and your own sentences, are read by the Spanish voice of this ' + DEVICE + '.</p>' : '') +
         '<div class="r-label">Dictionary</div><p class="credits">Word order and the forms people use: doozan/spanish_data (CC BY-SA), from the OpenSubtitles frequency list of hermitdave/FrequencyWords. Conjugation tables: made with verbecc (LGPL). Meanings in Chinese: written for Vamos.</p>' +
         '<div class="r-label">AI tutor</div><p class="credits">DeepSeek, online, with your own API key (optional).</p>' +

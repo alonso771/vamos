@@ -11,7 +11,8 @@
 (function () {
   'use strict';
   window.AUDIO_EXT = 'm4a';
-  window.SAY_AUDIO = { dir: 'data/say/', ext: 'm4a' };
+  window.SAY_AUDIO = { dir: 'data/say/', ext: 'm4a',
+    credit: 'The sentences of the app are read by a computer voice: Piper (open source, MIT), voice “claude” es_MX, high quality (dataset HirCoir/Piper-TTS-Spanish, Apache 2.0). Your own sentences are read by the Spanish voice of this device.' };
   var de = document.documentElement, UA = navigator.userAgent || '';
   var IOS = /iPhone|iPad|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   var STANDALONE = navigator.standalone === true || !!(window.matchMedia && (matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches));
