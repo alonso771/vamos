@@ -2,6 +2,21 @@
 
 Notes for continuing this work later (for you or for Claude).
 
+## 1.3.3 (2026-11-25): "Download all recordings" for offline use – web app only
+User: "Optional 'Download all recordings' button in Preferences: about 30 MB, so every word and sentence works offline".
+- Preferences → Offline recordings (sheet `rec`): Download / Stop / Download the rest / Remove, progress bar, the line in
+  Preferences says how far it is. Saves the 5,207 recordings (4,534 words + 673 sentences, about 30 MB; 9 s on a fast
+  connection) into the cache `vamos-rec-v1`, 6 downloads at a time; resumes where it stopped (only missing files).
+  `navigator.storage.persist()` asked again. localStorage `vamos-rec` = `{done: true}` once all are saved.
+- Only when all are saved the app asks for recordings with `?off=1` (`recUrl`), and sw.js answers those from
+  `vamos-rec-v1`, cut to the byte range Safari asks for (`part()`: 206 + Content-Range; suffix and open ranges too). A file
+  that is not there goes to the network. Without `?off=1` nothing changes from 1.3.2 (no risk for those who don't download).
+  The activate step keeps `vamos-rec-v1` when the app updates.
+- At the start (after 1.5 s) the app checks the saved copy against the list: files missing (the iPhone removed the data,
+  or new recordings) → `done` dropped, the sheet offers "Download the rest".
+- Tests (Playwright, service worker on): download of all 5,207 from a local server, offline answers for bytes=0-1 /
+  bytes=2- / whole file, offline start, `?off=1` only after the download, Remove. Not yet tried on the iPhone itself.
+
 ## 1.3.2 (2026-11-25): recordings heard in silent mode, DeepSeek compares with the closest answer – web app only
 User: "the audio doesn't play in my iphone 14 pro". Cause found with sound-test.html: the phone was in silent mode, and the
 iPhone's voice (speechSynthesis) always follows the silent switch, whatever the page does (1.3.1's trick did not help).
@@ -166,7 +181,7 @@ Main Spanish: Latin American, chosen by the user (Spain forms accepted, Spain vo
   data/words/*.m4a, data/say/*.m4a and licenses/lingualibre.txt and list data/words.js in FILES. The Android app needs
   app.js for the DeepSeek change and the Appearance option (the Java shell's status bar stays dark); it keeps its Ogg
   recordings and native TTS. tools/web_test.js still expects WORD_AUDIO_OFF: update it for the recordings.
-- Web: recordings aren't kept offline (see 1.3.2).
+- Web: recordings are kept offline only after Preferences → Offline recordings → Download (1.3.3); check it on the iPhone in flight mode.
 - Test on the phone: typing with the accent keys, the Spanish voice (es-US), word recordings, DeepSeek with a real key,
   Drive backup file, and Back.
 - Juzi Online (not Frase): its `Sync.available()` only returns true for the ".ai" package, so Juzi Online shows no Drive

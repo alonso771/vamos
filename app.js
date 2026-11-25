@@ -13,7 +13,7 @@
   var BUILTIN = (window.SENTENCE_DATA && window.SENTENCE_DATA.sentences) || [];
   var INTERVALS = [1, 5, 10, 15, 20, 30, 60, 90];      // "show again in N days" choices
   var SESSION_SIZE = 10;
-  var VERSION = '1.3.2';
+  var VERSION = '1.3.3';
   var KEY = 'frase-state-v1';
   var Native = window.FraseBridge || window.AndroidBridge || null;
   /* where it runs: the Android app (Java shell) or a browser / the web app on the Home Screen of an iPhone */
@@ -58,6 +58,7 @@
     gear: ic('<circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.5-2-3.5-2.4 1a7.6 7.6 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.6 7.6 0 0 0 7 6.500l-2.400-1-2 3.500 2 1.500a7.600 7.600 0 0 0 0 3l-2 1.500 2 3.500 2.400-1a7.600 7.600 0 0 0 2.600 1.500l.400 2.500h4l.400-2.500a7.600 7.600 0 0 0 2.600-1.500l2.400 1 2-3.500z"/>'),
     cards: ic('<rect x="3" y="7" width="13" height="14" rx="2.5"/><path d="M8 3.5h10.5A2.5 2.5 0 0 1 21 6v11"/><path d="M7 14.5h5M9.5 11.5v6"/>'),
     down: ic('<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>'), up: ic('<path d="M12 21V9M7 14l5-5 5 5M5 3h14"/>'), play: ic('<path d="M7 4.5v15l13-7.5z"/>', true),
+    download: ic('<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/>'),
     save: ic('<path d="M5 3h11l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 1-2z"/><path d="M8 3v5h7V3M8 21v-6.5h8V21"/>'),
     share: ic('<path d="M12 3v12M8 7l4-4 4 4"/><path d="M8 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-2"/>'),
     theme: ic('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>'),
@@ -239,7 +240,7 @@
   function sayClip(text) {
     var a = window.SAY_AUDIO; if (!a) return null;
     if (!sayById) { sayById = Object.create(null); BUILTIN.forEach(function (s) { if (s && s.es && s.id) sayById[s.es.trim()] = s.id; }); }
-    var id = sayById[text]; return id ? a.dir + id + '.' + a.ext : null;
+    var id = sayById[text]; return id ? recUrl(a.dir + id + '.' + a.ext) : null;
   }
   var SAY_CREDIT = (window.SAY_AUDIO && window.SAY_AUDIO.credit) || '';
   function stopVoice() {
@@ -1130,7 +1131,7 @@
       if (token !== FC.sayToken) return;
       var n = idx ? (idx[w] != null ? idx[w] : idx[w.toLowerCase()]) : null;
       var voice = function () { speak(w, function () { toast(idx ? 'No recording of this word, and the phone has no Spanish voice. Add one in Settings → Text-to-speech output.' : noVoiceText()); }); };
-      if (n != null) fcPlay('data/words/' + n + '.' + (window.AUDIO_EXT || 'ogg'), token, voice); else voice();
+      if (n != null) fcPlay(recUrl('data/words/' + n + '.' + (window.AUDIO_EXT || 'ogg')), token, voice); else voice();
     });
   }
   function fcPlay(url, token, onFail) {
@@ -1468,6 +1469,105 @@
       '<button class="menu-item" data-act="import-file">' + IC.file + '<span>Import sentences from a file<small>.txt / .csv (中文 | español | topic) or .json</small></span></button>', 'manage');
   }
   /* backup, voice, AI tutor, backup file in Drive (Android), credits: reached with the gear on the Practice and Library tabs */
+  /* ---------------- offline recordings (web app 1.3.3) ----------------
+     Preferences → Offline recordings saves every recording (words + the app's sentences, about 30 MB) in the cache
+     'vamos-rec-v1'. Once all are saved, the app asks for them with ?off=1 and sw.js answers from that cache (in parts: Safari
+     asks for byte ranges). Without the mark they come from the network, as in 1.3.2. A copy that the iPhone removed or
+     that misses new files is found at the start, and the mark is dropped until Download is tapped again. */
+  var REC_CACHE = 'vamos-rec-v1', REC_KEY = 'vamos-rec', REC_PAR = 6;
+  var REC = { has: WEB && !!window.AUDIO_EXT && !!window.caches && 'serviceWorker' in navigator && /^https?:$/.test(location.protocol),
+    run: false, stop: false, done: 0, total: 0, failed: 0, timer: 0 };
+  function recDone() { try { return JSON.parse(localStorage.getItem(REC_KEY) || '{}').done === true; } catch (e) { return false; } }
+  function recSetDone(v) { try { if (v) localStorage.setItem(REC_KEY, JSON.stringify({ done: true, at: Date.now() })); else localStorage.removeItem(REC_KEY); } catch (e) { } }
+  function recUrl(path) { return REC.has && recDone() ? path + '?off=1' : path; }
+  function recList(cb) {
+    fcWordAudio(function (idx) {
+      var l = [], seen = Object.create(null);
+      if (idx) for (var w in idx) { var u = 'data/words/' + idx[w] + '.' + window.AUDIO_EXT; if (!seen[u]) { seen[u] = 1; l.push(u); } }
+      if (window.SAY_AUDIO) BUILTIN.forEach(function (x) { if (x && x.id) l.push(SAY_AUDIO.dir + x.id + '.' + SAY_AUDIO.ext); });
+      cb(l);
+    });
+  }
+  /* which of the list are saved: [missing urls] */
+  function recMissing(c, list) {
+    return c.keys().then(function (keys) {
+      var have = Object.create(null), base = new URL('.', location.href).pathname;
+      keys.forEach(function (r) { have[new URL(r.url).pathname] = 1; });
+      return list.filter(function (u) { return !have[base + u]; });
+    });
+  }
+  function recLine() {
+    if (REC.run) return REC.stop ? 'Stopping…' : 'Downloading… ' + REC.done.toLocaleString('en') + ' of ' + REC.total.toLocaleString('en');
+    if (recDone()) return 'Saved on this ' + DEVICE + ': they play without internet';
+    if (REC.done) return REC.done.toLocaleString('en') + ' of ' + REC.total.toLocaleString('en') + ' saved · tap to finish';
+    return 'Download them (about 30 MB) to use them without internet';
+  }
+  function recSheet() {
+    var pct = REC.total ? Math.round(REC.done * 100 / REC.total) : 0, done = recDone();
+    var h = '<h3>Offline recordings</h3>' +
+      '<p>Words and the sentences of the app play recordings (heard in silent mode too). They come from the internet each time, unless they are saved on this ' + DEVICE + '. Save them all once, about 30 MB, and they play without internet as well.</p>' +
+      '<div class="bk-state rec-state ' + (done ? 'ok' : REC.done ? 'warn' : '') + '">' + (done ? IC.check || IC.download : IC.download) + '<span><b>' +
+      (REC.run ? 'Downloading… ' + pct + '%' : done ? 'All recordings saved' : REC.done ? 'Partly saved' : 'Not saved') + '</b><small>' + esc(REC.run ? REC.done.toLocaleString('en') + ' of ' + REC.total.toLocaleString('en') + ' recordings' : recLine()) + '</small>' +
+      (REC.run || (REC.done && !done) ? '<div class="bar rec-bar"><i style="width:' + pct + '%"></i></div>' : '') + '</span></div>' +
+      (REC.run ? '<p class="bk-how">You can close this and keep practising. Keep Vamos open until it is done; if it stops, tap Download again and it goes on where it stopped.</p>' : '') +
+      '<div class="actions">' +
+      (REC.run ? '<button class="btn ghost wide" data-act="rec-stop"' + (REC.stop ? ' disabled' : '') + '>Stop</button>' :
+        (done ? '<button class="btn ghost" data-act="rec-remove">Remove</button><button class="btn" data-act="close-sheet">Done</button>' :
+          (REC.done ? '<button class="btn ghost" data-act="rec-remove">Remove</button>' : '') + '<button class="btn" data-act="rec-start">' + IC.download + (REC.done ? 'Download the rest' : 'Download') + '</button>')) +
+      '</div>';
+    if (ui.sheet === 'rec' && $('.sheet')) $('.sheet').innerHTML = '<div class="grip"></div>' + h; else openSheet(h, 'rec');
+  }
+  function recPaint() {
+    clearTimeout(REC.timer); REC.timer = 0;
+    if (ui.sheet === 'rec') recSheet(); else if (ui.sheet === 'prefs') prefsSheet();
+  }
+  function recPaintSoon() { if (!REC.timer) REC.timer = setTimeout(recPaint, 250); }
+  function recStart() {
+    if (!REC.has || REC.run) return;
+    REC.run = true; REC.stop = false; REC.failed = 0; recPaint();
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { }
+    recList(function (list) {
+      var cache;
+      caches.open(REC_CACHE).then(function (c) { cache = c; return recMissing(c, list); }).then(function (todo) {
+        REC.total = list.length; REC.done = list.length - todo.length; recPaint();
+        var i = 0, quota = false;
+        function next() {
+          if (REC.stop || quota || i >= todo.length) return Promise.resolve();
+          var u = todo[i++];
+          return fetch(u).then(function (r) { if (!r.ok) throw new Error('http'); return cache.put(u, r); })
+            .then(function () { REC.done++; }, function (e) { REC.failed++; if (e && e.name === 'QuotaExceededError') quota = true; })
+            .then(function () { recPaintSoon(); return next(); });
+        }
+        var workers = []; for (var k = 0; k < REC_PAR; k++) workers.push(next());
+        return Promise.all(workers).then(function () { return quota; });
+      }).then(function (quota) {
+        REC.run = false;
+        if (REC.done >= REC.total && REC.total) { recSetDone(true); toast('All recordings are saved: they play without internet now.'); }
+        else if (quota) toast('There is not enough space on this ' + DEVICE + ' for all recordings.');
+        else if (!REC.stop) toast((REC.total - REC.done) + ' recordings could not be downloaded. Check the internet and tap Download again.');
+        REC.stop = false; recPaint();
+      }, function () { REC.run = false; REC.stop = false; toast('The recordings could not be saved on this ' + DEVICE + '.'); recPaint(); });
+    });
+  }
+  function recRemove() {
+    REC.stop = true; recSetDone(false);
+    caches.delete(REC_CACHE).then(function () { REC.done = 0; toast('The saved recordings are removed. They play from the internet again.'); recPaint(); },
+      function () { recPaint(); });
+  }
+  /* at the start: how much is saved (the iPhone can remove website data that is not used for weeks) */
+  if (REC.has) setTimeout(function () {
+    caches.has(REC_CACHE).then(function (yes) {
+      if (!yes) { if (recDone()) recSetDone(false); return; }
+      recList(function (list) {
+        caches.open(REC_CACHE).then(function (c) { return recMissing(c, list); }).then(function (todo) {
+          if (REC.run) return;
+          REC.total = list.length; REC.done = list.length - todo.length;
+          if (todo.length && recDone()) recSetDone(false); else if (!todo.length && !recDone()) recSetDone(true);
+          if (ui.sheet === 'prefs' || ui.sheet === 'rec') recPaint();
+        });
+      });
+    }).catch(function () { });
+  }, 1500);
   function prefsSheet() {
     var v = voicePref(), bk = bkStatus(), vn = WEB ? voiceName() : '', h = '<h3>Preferences</h3>' +
       '<button class="menu-item" data-act="backup">' + IC.save + '<span>Backup<small' + (bk.due || (!bk.at && !bkEmpty()) ? ' class="warn"' : '') + '>' + esc(bk.line) + '</small></span></button>' +
@@ -1476,6 +1576,7 @@
       '<div class="filters pref-chips"><button class="chip' + (v === 'es-US' ? ' on' : '') + '" data-act="voice" data-v="es-US">Latin America</button>' +
       '<button class="chip' + (v === 'es-ES' ? ' on' : '') + '" data-act="voice" data-v="es-ES">Spain</button></div>' +
       (WEB && IOS ? '<p class="pref-tip">The words and the sentences of the app play from recordings, heard in silent mode too. This voice reads your own sentences and words without a recording; the silent switch mutes it. A clearer voice: Settings → Accessibility → Read &amp; Speak → Voices → Spanish → download an <b>Enhanced</b> or <b>Premium</b> voice (for example Paulina for Latin America, Mónica for Spain).</p>' : '') + '</div>' +
+      (REC.has ? '<button class="menu-item" data-act="rec-sheet">' + IC.download + '<span>Offline recordings<small>' + esc(recLine()) + '</small></span></button>' : '') +
       (function () { var t = themePref(); function c(id, label) { return '<button class="chip' + (t === id ? ' on' : '') + '" data-act="theme" data-v="' + id + '">' + label + '</button>'; }
         return '<div class="pref-row"><div class="pref-label">' + IC.theme + '<span>Appearance<small>' + (t === 'auto' ? 'Follows the light or dark mode of this ' + DEVICE : t === 'light' ? 'Light colours' : 'Dark colours') + '</small></span></div>' +
           '<div class="filters pref-chips">' + c('dark', 'Dark') + c('light', 'Light') + c('auto', 'Auto') + '</div></div>'; })() +
@@ -1761,6 +1862,10 @@
     'home-quit': function () { closeSheet(); ACT.home(); },
     backdrop: function (el, e) { if (e.target === el) closeSheet(); },
     'close-sheet': closeSheet,
+    'rec-sheet': recSheet,
+    'rec-start': function () { recStart(); },
+    'rec-stop': function () { REC.stop = true; recPaint(); },
+    'rec-remove': recRemove,
     star: function (el) {
       var on = toggleStar(el.dataset.id);
       if (ui.view === 'tabs' && ui.tab === 'starred') return render();

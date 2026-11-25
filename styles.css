@@ -421,6 +421,9 @@ body[data-view="fc"], body[data-view="fcsum"] { background: var(--bg-session); }
 .sheet ol.tutor-steps li { margin: 3px 0; }
 .tutor-in.masked { -webkit-text-security: disc; }
 
+.rec-state > span { flex: 1; min-width: 0; }
+.bar.rec-bar { height: 8px; margin-top: 9px; }
+
 /* ---------- light theme (1.3.1): Preferences → Appearance (Dark / Light / Auto) sets html.light ---------- */
 html.light { color-scheme: light;
   --bg: #f5f3fa; --bg-session: #f5f3fa; --surface: #ffffff; --surface2: #ebe8f3; --line: #d9d5e6;
