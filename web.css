@@ -1,0 +1,35 @@
+/* Vamos web app (iPhone Home Screen, browsers): after styles.css.
+   The screen edges of the iPhone (status bar / Dynamic Island on top, home indicator at the bottom: env(safe-area-inset-*)),
+   the keyboard (web.js sets html.kb and the visible height --vvh / its offset --vvt while the keyboard is open),
+   text fields at 16 px (smaller ones make the iPhone zoom in when they are tapped). */
+html.web { --st: env(safe-area-inset-top, 0px); --sb: env(safe-area-inset-bottom, 0px); --sl: env(safe-area-inset-left, 0px); --sr: env(safe-area-inset-right, 0px);
+  --vvh: 100vh; --vvt: 0px; -webkit-touch-callout: none; }
+html.web button, html.web [data-act], html.web .acc-bar button { touch-action: manipulation; }
+
+/* below the status bar, inside the rounded corners in landscape */
+html.web #app { top: var(--st); left: var(--sl); right: var(--sr); }
+/* above the home indicator */
+html.web .tab-scroll { padding-bottom: max(118px, calc(var(--sb) + 102px)); }
+html.web .nav { bottom: max(12px, calc(var(--sb) - 4px)); left: calc(14px + var(--sl)); right: calc(14px + var(--sr)); }
+html.web .s-foot { padding-bottom: max(18px, calc(var(--sb) + 4px)); }
+html.web .result { padding-bottom: max(18px, calc(var(--sb) + 6px)); }
+html.web .sum-foot { padding-bottom: max(20px, calc(var(--sb) + 6px)); }
+html.web .sheet { padding: 10px max(20px, calc(var(--sr) + 12px)) max(22px, calc(var(--sb) + 10px)) max(20px, calc(var(--sl) + 12px)); max-height: calc(100% - var(--st) - 12px); }
+html.web .fc-judge { bottom: max(16px, calc(var(--sb) - 2px)); left: calc(16px + var(--sl)); right: calc(16px + var(--sr)); }
+html.web .fc-back { padding-bottom: max(132px, calc(var(--sb) + 116px)); }
+html.web #toast { bottom: max(110px, calc(var(--sb) + 104px)); }
+
+/* the keyboard is open: the app takes the part of the screen above it */
+html.web.kb #app { top: calc(var(--vvt) + var(--st)); bottom: auto; height: calc(var(--vvh) - var(--st)); }
+html.web.kb .nav { display: none; }
+html.web.kb .tab-scroll { padding-bottom: 24px; }
+html.web.kb .s-foot { padding-bottom: 10px; }
+html.web.kb .backdrop { top: var(--vvt); bottom: auto; height: var(--vvh); }
+html.web.kb .sheet { padding-bottom: 14px; max-height: calc(100% - var(--st) - 8px); }
+html.web.kb #toast { top: calc(var(--vvt) + var(--st) + 10px); bottom: auto; }
+
+/* text fields: 16 px or more */
+html.web textarea.paste:not(.short), html.web .tutor-in, html.web .fc-in, html.web .search input { font-size: 16px; }
+
+/* links that open in Safari (DeepSeek key page) */
+html.web .sheet a { text-decoration: underline; text-underline-offset: 3px; }
