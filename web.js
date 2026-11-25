@@ -1,6 +1,8 @@
 /* Vamos web app (iPhone: Safari → Add to Home Screen; works in other browsers too). Loaded before app.js.
    It does here what the Android shell does in the Android app:
-   - no word recordings (Safari cannot play their format): the words are read by the phone's own Spanish voice;
+   - recordings (1.3.2), heard in silent mode too: words from Lingua Libre (data/words/<n>.m4a, AAC, as Safari cannot play
+     the Ogg files of the Android app) and the sentences of the app (data/say/<id>.m4a, made with Piper); the phone's voice
+     reads the rest (your own sentences) and is muted by the silent switch;
    - the keyboard: the iPhone keeps the page as tall as the screen when the keyboard opens, so the app is fitted to the
      visible part (visualViewport) and the Check button stays above the keyboard;
    - offline: sw.js keeps all files, the app opens without internet (DeepSeek needs internet, of course);
@@ -8,7 +10,8 @@
    - asks the browser to keep the storage (the progress lives there). */
 (function () {
   'use strict';
-  window.WORD_AUDIO_OFF = true;
+  window.AUDIO_EXT = 'm4a';
+  window.SAY_AUDIO = { dir: 'data/say/', ext: 'm4a' };
   var de = document.documentElement, UA = navigator.userAgent || '';
   var IOS = /iPhone|iPad|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   var STANDALONE = navigator.standalone === true || !!(window.matchMedia && (matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches));

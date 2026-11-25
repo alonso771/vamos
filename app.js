@@ -13,7 +13,7 @@
   var BUILTIN = (window.SENTENCE_DATA && window.SENTENCE_DATA.sentences) || [];
   var INTERVALS = [1, 5, 10, 15, 20, 30, 60, 90];      // "show again in N days" choices
   var SESSION_SIZE = 10;
-  var VERSION = '1.3.1';
+  var VERSION = '1.3.2';
   var KEY = 'frase-state-v1';
   var Native = window.FraseBridge || window.AndroidBridge || null;
   /* where it runs: the Android app (Java shell) or a browser / the web app on the Home Screen of an iPhone */
@@ -227,7 +227,26 @@
   function speak(text, onFail) {
     text = String(text || '').trim(); if (!text) return;
     try { if (FC.audio) FC.audio.pause(); } catch (e) { }
+    var token = FC.sayToken = (FC.sayToken || 0) + 1;
     voiceFail = onFail || null;
+    var clip = sayClip(text);
+    if (clip) { stopVoice(); return fcPlay(clip, token, function () { speakVoice(text); }); }    // (no file, offline: the voice)
+    speakVoice(text);
+  }
+  /* the recording of a sentence of the app (web app 1.3.2: data/say/<id>.m4a, made with Piper; window.SAY_AUDIO set by web.js).
+     Your own sentences, and a sentence whose Spanish you changed, are read by the voice. */
+  var sayById = null;
+  function sayClip(text) {
+    var a = window.SAY_AUDIO; if (!a) return null;
+    if (!sayById) { sayById = Object.create(null); BUILTIN.forEach(function (s) { if (s && s.es && s.id) sayById[s.es.trim()] = s.id; }); }
+    var id = sayById[text]; return id ? a.dir + id + '.' + a.ext : null;
+  }
+  var SAY_CREDIT = (window.SAY_AUDIO && window.SAY_AUDIO.credit) || '';
+  function stopVoice() {
+    clearTimeout(sayWatch); utter = null; keeperOff();
+    try { if (window.speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel(); } catch (e) { }
+  }
+  function speakVoice(text) {
     try { if (Native && Native.ttsSpeak) { Native.ttsSpeak(text); return; } } catch (e) { }
     if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return window.__ttsFailed();
     var v = bestVoice();
@@ -270,8 +289,7 @@
   };
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState !== 'hidden' || !WEB) return;
-    clearTimeout(sayWatch); utter = null; keeperOff();
-    try { if (window.speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel(); } catch (e) { }
+    stopVoice(); try { if (FC.audio) FC.audio.pause(); } catch (e) { }
   });
   /* the voice in use (web app), for Preferences */
   function voiceName() { var v = bestVoice(); return v ? v.name.replace(/\s*\((Enhanced|Premium|Mejorada|Prémium)\)/i, '') + ' · ' + String(v.lang).replace('_', '-') + (/premium/i.test(v.name + v.voiceURI) ? ' · premium' : /enhanced/i.test(v.name + v.voiceURI) ? ' · enhanced' : '') : ''; }
@@ -1086,8 +1104,9 @@
     });
   }
 
-  /* sound: the recording of the word, else the phone's Spanish voice. The web app has no recordings (WORD_AUDIO_OFF, set by
-     web.js: Safari cannot play their format, and the phone's voice is there anyway); the voice then starts inside the tap. */
+  /* sound: the recording of the word, else the phone's Spanish voice. The web app (1.3.2) plays the same recordings as AAC
+     (window.AUDIO_EXT = 'm4a', set by web.js: Safari cannot play Ogg); they are heard in silent mode too, unlike the voice.
+     words.js is loaded at the start there, so the recording starts inside the tap (Safari needs that). */
   function fcWordAudio(cb) {
     if (window.WORD_AUDIO_OFF) { FC.words = null; return cb(null); }
     if (FC.words !== undefined) return cb(FC.words);
@@ -1099,6 +1118,7 @@
     };
     s.src = 'data/words.js'; s.onload = done; s.onerror = done; document.head.appendChild(s);
   }
+  if (WEB && window.AUDIO_EXT) setTimeout(function () { fcWordAudio(function () { }); }, 0);
   function fcSay(w) {
     w = String(w || '').trim(); if (!w) return;
     var token = FC.sayToken = (FC.sayToken || 0) + 1;
@@ -1107,7 +1127,7 @@
       if (token !== FC.sayToken) return;
       var n = idx ? (idx[w] != null ? idx[w] : idx[w.toLowerCase()]) : null;
       var voice = function () { speak(w, function () { toast(idx ? 'No recording of this word, and the phone has no Spanish voice. Add one in Settings → Text-to-speech output.' : noVoiceText()); }); };
-      if (n != null) fcPlay('data/words/' + n + '.ogg', token, voice); else voice();
+      if (n != null) fcPlay('data/words/' + n + '.' + (window.AUDIO_EXT || 'ogg'), token, voice); else voice();
     });
   }
   function fcPlay(url, token, onFail) {
@@ -1116,6 +1136,7 @@
     a.onerror = fail;
     a.onplaying = function () { started = true; };
     a.src = url;
+    try { if (IOS && navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { }
     var pr = a.play(); if (pr && pr.catch) pr.catch(function (e) { if (e && e.name === 'NotAllowedError') toast('The sound could not be played.'); else fail(); });
   }
 
@@ -1448,10 +1469,10 @@
     var v = voicePref(), bk = bkStatus(), vn = WEB ? voiceName() : '', h = '<h3>Preferences</h3>' +
       '<button class="menu-item" data-act="backup">' + IC.save + '<span>Backup<small' + (bk.due || (!bk.at && !bkEmpty()) ? ' class="warn"' : '') + '>' + esc(bk.line) + '</small></span></button>' +
       '<div class="pref-row"><div class="pref-label">' + IC.voice + '<span>Spanish voice<small>' +
-      (!WEB ? 'Reads the sentences, and words without a recording' : vn ? 'Reads sentences and words: ' + esc(vn) : 'Reads sentences and words with the Spanish voice of this ' + DEVICE) + '</small></span></div>' +
+      (!WEB ? 'Reads the sentences, and words without a recording' : vn ? 'For your own sentences: ' + esc(vn) : 'Reads your own sentences with the Spanish voice of this ' + DEVICE) + '</small></span></div>' +
       '<div class="filters pref-chips"><button class="chip' + (v === 'es-US' ? ' on' : '') + '" data-act="voice" data-v="es-US">Latin America</button>' +
       '<button class="chip' + (v === 'es-ES' ? ' on' : '') + '" data-act="voice" data-v="es-ES">Spain</button></div>' +
-      (WEB && IOS ? '<p class="pref-tip">A clearer voice: Settings → Accessibility → Read &amp; Speak → Voices → Spanish → download an <b>Enhanced</b> or <b>Premium</b> voice (for example Paulina for Latin America, Mónica for Spain). Vamos picks the best one by itself. No sound at all? Check the volume and the silent mode.</p>' : '') + '</div>' +
+      (WEB && IOS ? '<p class="pref-tip">The words and the sentences of the app play from recordings, heard in silent mode too. This voice reads your own sentences and words without a recording; the silent switch mutes it. A clearer voice: Settings → Accessibility → Read &amp; Speak → Voices → Spanish → download an <b>Enhanced</b> or <b>Premium</b> voice (for example Paulina for Latin America, Mónica for Spain).</p>' : '') + '</div>' +
       (function () { var t = themePref(); function c(id, label) { return '<button class="chip' + (t === id ? ' on' : '') + '" data-act="theme" data-v="' + id + '">' + label + '</button>'; }
         return '<div class="pref-row"><div class="pref-label">' + IC.theme + '<span>Appearance<small>' + (t === 'auto' ? 'Follows the light or dark mode of this ' + DEVICE : t === 'light' ? 'Light colours' : 'Dark colours') + '</small></span></div>' +
           '<div class="filters pref-chips">' + c('dark', 'Dark') + c('light', 'Light') + c('auto', 'Auto') + '</div></div>'; })() +
@@ -1463,9 +1484,10 @@
   function creditsSheet() {
     fcWordAudio(function () {
       openSheet('<h3>Vamos ' + VERSION + (WEB ? ' · web app' : '') + '</h3><p>Spanish sentence practice for Chinese speakers: 673 sentences in 19 topics, written in Spanish with Latin American Spanish as the main form (forms from Spain are accepted too), and flash cards with 5,100 common words.</p>' +
-        (WEB ? '<div class="r-label">Sound</div><p class="credits">Words and sentences are read by the Spanish voice of this ' + DEVICE + ' (Preferences → Spanish voice). The Android app plays recordings of native speakers for most words.</p>' :
-        '<div class="r-label">Word recordings</div><p class="credits">Native speakers on Lingua Libre (lingualibre.org), from Wikimedia Commons: ' + esc(FC.credits || 'see licenses/lingualibre.txt') +
+        (WEB ? '<div class="r-label">Sentence recordings</div><p class="credits">' + SAY_CREDIT + '</p>' : '') +
+        ('<div class="r-label">Word recordings</div><p class="credits">Native speakers on Lingua Libre (lingualibre.org), from Wikimedia Commons: ' + esc(FC.credits || 'see licenses/lingualibre.txt') +
         '. Licences CC BY-SA 4.0, CC BY 4.0 or CC0, as listed per file in licenses/lingualibre.txt inside the app. Silence trimmed, loudness evened, re-encoded.</p>') +
+        (WEB ? '<p class="credits">Words without a recording, and your own sentences, are read by the Spanish voice of this ' + DEVICE + '.</p>' : '') +
         '<div class="r-label">Dictionary</div><p class="credits">Word order and the forms people use: doozan/spanish_data (CC BY-SA), from the OpenSubtitles frequency list of hermitdave/FrequencyWords. Conjugation tables: made with verbecc (LGPL). Meanings in Chinese: written for Vamos.</p>' +
         '<div class="r-label">AI tutor</div><p class="credits">DeepSeek, online, with your own API key (optional).</p>' +
         '<div class="actions"><button class="btn" data-act="close-sheet">Done</button></div>', 'credits');

@@ -2,7 +2,7 @@
    VERSION and FILES are filled in by tools/build_web.py; a new VERSION (any file changed) makes the phone fetch the new
    files and drop the old ones. Requests to other sites (DeepSeek) go straight to the network. */
 var VERSION = "vamos-1.3.1-afa8d16372";
-var FILES = ["./", "app.js", "check.js", "data/dict.js", "data/sentences.js", "icons/apple-touch-icon.png", "icons/favicon-32.png", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "index.html", "manifest.webmanifest", "online.js", "styles.css", "web.css", "web.js"];
+var FILES = ["./", "app.js", "check.js", "data/dict.js", "data/sentences.js", "data/words.js", "icons/apple-touch-icon.png", "icons/favicon-32.png", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "index.html", "manifest.webmanifest", "online.js", "styles.css", "web.css", "web.js"];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(VERSION).then(function (c) {
@@ -19,6 +19,7 @@ self.addEventListener('fetch', function (e) {
   if (req.method !== 'GET') return;
   var url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  if (/\.(m4a|ogg|mp3)$/.test(url.pathname)) return;               // recordings: from the network (Safari asks for parts of them)
   var page = req.mode === 'navigate';
   if (page && !/\/(index\.html)?$/.test(url.pathname)) return;      // other pages of the site (sound-test.html): from the network
   e.respondWith(caches.open(VERSION).then(function (c) {
