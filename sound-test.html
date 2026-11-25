@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Vamos sound test</title>
+<style>
+  :root { --bg: #f5f3fa; --card: #fff; --text: #1b1a22; --muted: #6c6981; --accent: #7c4ae8; --line: #e0dcea; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #12111a; --card: #1c1b25; --text: #fff; --muted: #9c9aad; --accent: #8c5cf2; --line: #312f3e; } }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, -apple-system, sans-serif;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom)); }
+  h1 { font-size: 22px; margin: 4px 0 6px; } p { margin: 0 0 12px; color: var(--muted); font-size: 14.5px; }
+  .t { display: flex; align-items: center; gap: 12px; background: var(--card); border-radius: 14px; padding: 12px; margin: 0 0 10px; }
+  .t b { display: block; } .t small { color: var(--muted); font-size: 13px; }
+  .t span { flex: 1; min-width: 0; }
+  button { font: inherit; font-weight: 700; border: 0; border-radius: 12px; padding: 10px 14px; background: var(--accent); color: #fff; flex: none; }
+  button.ghost { background: var(--line); color: var(--text); }
+  .n { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--line); font-weight: 800; flex: none; }
+  pre { white-space: pre-wrap; word-break: break-word; background: var(--card); border-radius: 14px; padding: 12px; font-size: 12px; line-height: 1.4; }
+</style>
+</head>
+<body>
+<h1>Vamos sound test</h1>
+<p>Turn the volume up. Tap each <b>Play</b> button and wait for it to finish. Note which numbers you <b>hear</b>. Then flip the silent switch on the side of the phone and try again. When you're done, tap <b>Copy results</b> and paste them to Claude with the numbers you heard.</p>
+
+<div class="t"><div class="n">1</div><span><b>Beep</b><small>a short tone, played as normal media audio</small></span><button data-t="1">Play</button></div>
+<div class="t"><div class="n">2</div><span><b>Voice, plain</b><small>Spanish, the phone picks the voice, no extra settings</small></span><button data-t="2">Play</button></div>
+<div class="t"><div class="n">3</div><span><b>Voice, English</b><small>English, the phone picks the voice</small></span><button data-t="3">Play</button></div>
+<div class="t"><div class="n">4</div><span><b>Voice, chosen Spanish voice</b><small>the voice Vamos would pick, no extra settings</small></span><button data-t="4">Play</button></div>
+<div class="t"><div class="n">5</div><span><b>Voice, the Vamos 1.3.1 way</b><small>“playback” audio + a silent clip + the chosen voice</small></span><button data-t="5">Play</button></div>
+<div class="t"><div class="n">6</div><span><b>Voice, “playback” audio only</b><small>no silent clip</small></span><button data-t="6">Play</button></div>
+<div class="t"><div class="n">7</div><span><b>Beep, then voice</b><small>a tone first, the plain voice right after it</small></span><button data-t="7">Play</button></div>
+
+<p style="margin-top:16px"><button class="ghost" id="copy">Copy results</button> <button class="ghost" id="clear">Clear</button></p>
+<pre id="log"></pre>
+
+<script>
+(function () {
+  'use strict';
+  var logEl = document.getElementById('log'), t0 = Date.now(), lines = [];
+  function log(s) { lines.push(((Date.now() - t0) / 1000).toFixed(1) + 's ' + s); logEl.textContent = lines.join('\n'); }
+  function wav(seconds, freq) {          // 16 kHz 8-bit mono; freq 0 = silence
+    var rate = 16000, n = Math.round(rate * seconds), b = new Uint8Array(44 + n), d = new DataView(b.buffer), i, s = '';
+    function tag(o, t) { for (var j = 0; j < 4; j++) b[o + j] = t.charCodeAt(j); }
+    tag(0, 'RIFF'); d.setUint32(4, 36 + n, true); tag(8, 'WAVE'); tag(12, 'fmt '); d.setUint32(16, 16, true); d.setUint16(20, 1, true);
+    d.setUint16(22, 1, true); d.setUint32(24, rate, true); d.setUint32(28, rate, true); d.setUint16(32, 1, true); d.setUint16(34, 8, true);
+    tag(36, 'data'); d.setUint32(40, n, true);
+    for (i = 0; i < n; i++) { var env = Math.min(1, i / 400, (n - i) / 400); b[44 + i] = 128 + Math.round(freq ? 90 * env * Math.sin(2 * Math.PI * freq * i / rate) : 0); }
+    for (i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+    return 'data:audio/wav;base64,' + btoa(s);
+  }
+  var beep = new Audio(wav(0.5, 660)), silent = new Audio(wav(0.5, 0));
+  beep.setAttribute('playsinline', ''); silent.setAttribute('playsinline', ''); silent.loop = true;
+  var ss = window.speechSynthesis, keep = null;
+
+  function session(type) {
+    if (!navigator.audioSession) return log('audioSession: not available');
+    try { navigator.audioSession.type = type; log('audioSession.type = ' + navigator.audioSession.type + ' (state ' + navigator.audioSession.state + ')'); }
+    catch (e) { log('audioSession error: ' + e); }
+  }
+  function play(a, name) {
+    try { var p = a.play(); if (p && p.then) p.then(function () { log(name + ': playing'); }, function (e) { log(name + ': play() refused: ' + (e && e.name)); }); }
+    catch (e) { log(name + ': error ' + e); }
+  }
+  function voices() { try { return ss ? ss.getVoices() || [] : []; } catch (e) { return []; } }
+  function bestSpanish() {
+    var best = null, top = -1;
+    voices().forEach(function (v) {
+      var lang = String(v.lang || '').replace('_', '-'); if (!/^es(-|$)/i.test(lang)) return;
+      var r = lang.slice(3).toUpperCase(), s = r === 'MX' ? 300 : r === 'US' ? 290 : r === '419' ? 280 : r === 'ES' ? 100 : 200;
+      s += /premium/i.test(v.name + v.voiceURI) ? 30 : /enhanced/i.test(v.name + v.voiceURI) ? 20 : 0;
+      if (s > top) { top = s; best = v; }
+    });
+    return best;
+  }
+  function say(text, lang, voice) {
+    if (!ss) return log('speechSynthesis: not available');
+    if (ss.speaking || ss.pending) ss.cancel();
+    if (ss.paused) { ss.resume(); log('was paused: resumed'); }
+    var u = keep = new SpeechSynthesisUtterance(text);
+    u.lang = lang; if (voice) { u.voice = voice; u.lang = voice.lang; }
+    u.rate = .9;
+    var label = '“' + text + '” ' + u.lang + (voice ? ' / ' + voice.name : ' / (phone picks)');
+    u.onstart = function () { log('  start ' + label); };
+    u.onend = function () { log('  end'); if (keep === u) try { silent.pause(); } catch (e) { } };
+    u.onerror = function (e) { log('  error: ' + (e && e.error)); };
+    ss.speak(u);
+    log('speak() ' + label + ' · speaking=' + ss.speaking + ' pending=' + ss.pending + ' paused=' + ss.paused);
+  }
+  var T = {
+    1: function () { session('auto'); beep.currentTime = 0; play(beep, 'beep'); },
+    2: function () { session('auto'); say('Hola, ¿cómo estás?', 'es-MX'); },
+    3: function () { session('auto'); say('Hello, how are you?', 'en-US'); },
+    4: function () { session('auto'); var v = bestSpanish(); if (!v) log('no Spanish voice in the list'); say('Hola, ¿cómo estás?', 'es-MX', v); },
+    5: function () { session('playback'); play(silent, 'silent clip'); say('Hola, ¿cómo estás?', 'es-MX', bestSpanish()); },
+    6: function () { session('playback'); say('Hola, ¿cómo estás?', 'es-MX', bestSpanish()); },
+    7: function () { session('auto'); beep.currentTime = 0; play(beep, 'beep'); say('Hola, ¿cómo estás?', 'es-MX'); }
+  };
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-t]'); if (!b) return;
+    try { silent.pause(); } catch (x) { }
+    log('— test ' + b.dataset.t); T[b.dataset.t]();
+  });
+  document.getElementById('clear').onclick = function () { lines = []; t0 = Date.now(); info(); };
+  document.getElementById('copy').onclick = function () {
+    var txt = lines.join('\n');
+    (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function () { log('(copied)'); }, function () {
+      var r = document.createRange(); r.selectNodeContents(logEl); var s = getSelection(); s.removeAllRanges(); s.addRange(r); log('(selected: copy it from the menu)');
+    });
+  };
+  function info() {
+    log(navigator.userAgent);
+    log('standalone=' + (navigator.standalone === true) + ' · audioSession=' + (navigator.audioSession ? navigator.audioSession.type : 'none') + ' · speechSynthesis=' + !!ss);
+    var vs = voices(), es = vs.filter(function (v) { return /^es/i.test(v.lang); });
+    log('voices: ' + vs.length + ' in all, ' + es.length + ' Spanish' + (es.length ? ': ' + es.slice(0, 14).map(function (v) { return v.name + ' (' + v.lang + (v.localService ? '' : ', online') + ')'; }).join(', ') : ''));
+    var b = bestSpanish(); log('Vamos would use: ' + (b ? b.name + ' ' + b.lang + ' ' + b.voiceURI : 'none'));
+  }
+  info();
+  if (ss && ss.addEventListener) ss.addEventListener('voiceschanged', function () { log('(voices loaded)'); var b = bestSpanish(); log('voices: ' + voices().length + ' · Vamos would use: ' + (b ? b.name + ' ' + b.lang : 'none')); });
+})();
+</script>
+</body>
+</html>
