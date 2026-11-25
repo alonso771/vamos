@@ -13,7 +13,7 @@
   var BUILTIN = (window.SENTENCE_DATA && window.SENTENCE_DATA.sentences) || [];
   var INTERVALS = [1, 5, 10, 15, 20, 30, 60, 90];      // "show again in N days" choices
   var SESSION_SIZE = 10;
-  var VERSION = '1.3';
+  var VERSION = '1.3.1';
   var KEY = 'frase-state-v1';
   var Native = window.FraseBridge || window.AndroidBridge || null;
   /* where it runs: the Android app (Java shell) or a browser / the web app on the Home Screen of an iPhone */
@@ -60,6 +60,7 @@
     down: ic('<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>'), up: ic('<path d="M12 21V9M7 14l5-5 5 5M5 3h14"/>'), play: ic('<path d="M7 4.5v15l13-7.5z"/>', true),
     save: ic('<path d="M5 3h11l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 1-2z"/><path d="M8 3v5h7V3M8 21v-6.5h8V21"/>'),
     share: ic('<path d="M12 3v12M8 7l4-4 4 4"/><path d="M8 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-2"/>'),
+    theme: ic('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>'),
     info: ic('<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>'), voice: ic('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>')
   };
 
@@ -150,6 +151,18 @@
     voiceCache = null;
   }
   try { if (Native && Native.ttsSetVoice) Native.ttsSetVoice(voicePref()); } catch (e) { }
+  /* light / dark (1.3.1): Preferences → Appearance. 'auto' follows the phone. Kept in this device's storage, not in the progress. */
+  var THEME_KEY = 'vamos-theme', darkMq = null;
+  try { darkMq = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null; } catch (e) { }
+  function themePref() { try { var t = localStorage.getItem(THEME_KEY); return t === 'light' || t === 'auto' ? t : 'dark'; } catch (e) { return 'dark'; } }
+  function applyTheme() {
+    var t = themePref(), light = t === 'light' || (t === 'auto' && !!darkMq && !darkMq.matches);
+    document.documentElement.classList.toggle('light', light);
+    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', light ? '#f5f3fa' : '#12111a');
+    m = document.querySelector('meta[name="color-scheme"]'); if (m) m.setAttribute('content', light ? 'light' : 'dark');
+  }
+  applyTheme();
+  if (darkMq) { try { darkMq.addEventListener('change', applyTheme); } catch (e) { try { darkMq.addListener(applyTheme); } catch (x) { } } }
   /* where to add a Spanish voice when there is none */
   function noVoiceText() {
     return IOS ? 'No Spanish voice found. Add one on the ' + DEVICE + ': Settings → Accessibility → Read & Speak → Voices → Spanish.' :
@@ -180,30 +193,86 @@
   }
   try { if (window.speechSynthesis && speechSynthesis.addEventListener) speechSynthesis.addEventListener('voiceschanged', function () { voiceCache = null; if (ui.sheet === 'prefs') prefsSheet(); }); } catch (e) { }
   var voiceFail = null;
+  /* the iPhone's sound (1.3.1): the web voice alone is muted by the silent switch, and an audio session set to 'playback'
+     with nothing playing can leave the voice silent altogether (WebKit uses that session only while a media element plays).
+     So inside the tap the session is set to 'playback' and a silent clip plays in a loop while the voice speaks; it stops
+     1.5 s after the voice ends. */
+  var keeper = null, keeperTimer = 0;
+  function silentWav() {        // 0.5 s of silence, 8 kHz 8-bit mono
+    var n = 4000, b = new Uint8Array(44 + n), d = new DataView(b.buffer), i, str = '';
+    function tag(o, t) { for (var j = 0; j < 4; j++) b[o + j] = t.charCodeAt(j); }
+    tag(0, 'RIFF'); d.setUint32(4, 36 + n, true); tag(8, 'WAVE'); tag(12, 'fmt '); d.setUint32(16, 16, true); d.setUint16(20, 1, true);
+    d.setUint16(22, 1, true); d.setUint32(24, 8000, true); d.setUint32(28, 8000, true); d.setUint16(32, 1, true); d.setUint16(34, 8, true);
+    tag(36, 'data'); d.setUint32(40, n, true);
+    for (i = 44; i < b.length; i++) b[i] = 128;
+    for (i = 0; i < b.length; i++) str += String.fromCharCode(b[i]);
+    return 'data:audio/wav;base64,' + btoa(str);
+  }
+  function keeperOn() {
+    if (!IOS) return;
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { }
+    try {
+      if (!keeper) { keeper = new Audio(silentWav()); keeper.loop = true; keeper.setAttribute('playsinline', ''); }
+      clearTimeout(keeperTimer); keeperTimer = setTimeout(keeperOff, 60000);           // (if the voice never says it has ended)
+      if (keeper.paused) { var p = keeper.play(); if (p && p.catch) p.catch(function () { }); }
+    } catch (e) { }
+  }
+  function keeperOff(later) {
+    clearTimeout(keeperTimer);
+    if (later) { keeperTimer = setTimeout(keeperOff, later); return; }
+    try { if (keeper && !keeper.paused) keeper.pause(); } catch (e) { }
+  }
   /* reads Spanish text aloud with the device's voice; onFail when there is no Spanish voice */
+  var utter = null, sayWatch = 0;
   function speak(text, onFail) {
     text = String(text || '').trim(); if (!text) return;
     try { if (FC.audio) FC.audio.pause(); } catch (e) { }
     voiceFail = onFail || null;
     try { if (Native && Native.ttsSpeak) { Native.ttsSpeak(text); return; } } catch (e) { }
+    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return window.__ttsFailed();
+    var v = bestVoice();
+    if (!v && voiceList().length) return window.__ttsFailed();      // voices, but not one for Spanish
+    keeperOn();
+    sayOnce(text, v, 0);
+  }
+  /* try 0: the chosen voice. Try 1, when the first one has not started after 2.5 s or failed: the language only (a voice
+     that is listed but not on the phone stays silent), after a cancel. Still nothing: a hint about what to check. */
+  function sayOnce(text, v, n) {
+    var started = false, u, ss = window.speechSynthesis;
+    clearTimeout(sayWatch);
     try {
-      if (window.speechSynthesis && window.SpeechSynthesisUtterance) {
-        var u = new SpeechSynthesisUtterance(text), v = bestVoice();
-        if (!v && voiceList().length) return window.__ttsFailed();      // voices, but not one for Spanish
-        if (v) { u.voice = v; u.lang = v.lang; } else u.lang = voicePref() === 'es-ES' ? 'es-ES' : IOS ? 'es-MX' : 'es-US';
-        u.rate = .9;
-        u.onerror = function (e) { if (e && (e.error === 'interrupted' || e.error === 'canceled')) return; window.__ttsFailed(); };   // (not: another word was tapped)
-        try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (x) { }        // iPhone: heard with the silent switch on too
-        if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
-        speechSynthesis.speak(u); return;
-      }
-    } catch (e) { }
-    window.__ttsFailed();
+      if (ss.speaking || ss.pending) ss.cancel();        // only then (Safari can drop the next utterance after a cancel())
+      if (ss.paused) ss.resume();                        // (the iPhone can leave it paused after the app was in the background)
+      u = utter = new SpeechSynthesisUtterance(text);    // (kept in a variable: an utterance that is dropped can go silent)
+      if (v && !n) { u.voice = v; u.lang = v.lang; } else u.lang = v ? String(v.lang).replace('_', '-') : voicePref() === 'es-ES' ? 'es-ES' : IOS ? 'es-MX' : 'es-US';
+      u.rate = .9;
+      u.onstart = u.onboundary = function () { started = true; };
+      u.onend = function () { started = true; if (u === utter) keeperOff(1500); };
+      u.onerror = function (e) {
+        if (u !== utter || (e && (e.error === 'interrupted' || e.error === 'canceled'))) return;    // (another word was tapped)
+        clearTimeout(sayWatch);
+        if (!n && !started) return retry();
+        keeperOff(); window.__ttsFailed();
+      };
+      ss.speak(u);
+    } catch (e) { keeperOff(); return window.__ttsFailed(); }
+    function retry() { try { ss.cancel(); } catch (x) { } setTimeout(function () { if (u === utter) sayOnce(text, v, 1); }, 80); }
+    sayWatch = setTimeout(function () {
+      if (u !== utter || started) return;
+      if (!n) return retry();
+      toast(IOS ? 'No sound? Turn the volume up, and check that a Spanish voice is downloaded: Settings → Accessibility → Read & Speak → Voices → Spanish.' :
+        'No sound? Turn the volume up, and check that this device has a Spanish voice.');
+    }, n ? 3000 : 2500);
   }
   window.__ttsFailed = function () {
     var f = voiceFail; voiceFail = null;
     if (f) f(); else toast(noVoiceText());
   };
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'hidden' || !WEB) return;
+    clearTimeout(sayWatch); utter = null; keeperOff();
+    try { if (window.speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel(); } catch (e) { }
+  });
   /* the voice in use (web app), for Preferences */
   function voiceName() { var v = bestVoice(); return v ? v.name.replace(/\s*\((Enhanced|Premium|Mejorada|Prémium)\)/i, '') + ' · ' + String(v.lang).replace('_', '-') + (/premium/i.test(v.name + v.voiceURI) ? ' · premium' : /enhanced/i.test(v.name + v.voiceURI) ? ' · enhanced' : '') : ''; }
   function sayBtn(text, cls) { return '<button class="say-btn' + (cls ? ' ' + cls : '') + '" data-act="say" data-t="' + esc(text) + '" aria-label="Listen">' + IC.sound + '</button>'; }
@@ -480,7 +549,7 @@
   function summaryHTML() {
     var r = ui.sess.results, ok = r.filter(function (x) { return x.ok; }).length, pct = r.length ? Math.round(100 * ok / r.length) : 0;
     var msg = pct === 100 ? 'Perfect session!' : pct >= 70 ? 'Nice work!' : pct >= 40 ? 'Good practice — keep going.' : 'Tough round. These will come back soon.';
-    return '<div class="summary"><div class="sum-scroll"><div class="ring" style="background:conic-gradient(var(--green) ' + pct + '%, #3a3a3e 0)"><div>' + ok + '/' + r.length + '</div></div>' +
+    return '<div class="summary"><div class="sum-scroll"><div class="ring" style="background:conic-gradient(var(--green) ' + pct + '%, var(--track) 0)"><div>' + ok + '/' + r.length + '</div></div>' +
       '<h1>Session complete</h1><p class="lead">' + msg + '</p>' + bkBannerHTML() +
       r.map(function (x) {
         var s = byId[x.id], a = peek(x.id).arch;
@@ -1228,7 +1297,7 @@
   }
   function fcSummaryHTML() {
     var s = FC.sess, ids = s.order.filter(function (id) { return id in s.first && fcById(id); }), ok = ids.filter(function (id) { return s.first[id]; }).length, pct = ids.length ? Math.round(100 * ok / ids.length) : 0;
-    return '<div class="summary"><div class="sum-scroll"><div class="ring" style="background:conic-gradient(var(--green) ' + pct + '%, #3a3a3e 0)"><div>' + ok + '/' + ids.length + '</div></div>' +
+    return '<div class="summary"><div class="sum-scroll"><div class="ring" style="background:conic-gradient(var(--green) ' + pct + '%, var(--track) 0)"><div>' + ok + '/' + ids.length + '</div></div>' +
       '<h1>Flash cards done</h1><p class="lead">' + (ok === ids.length ? 'You remembered every card.' : 'Remembered at the first try: ' + ok + ' of ' + ids.length + '.') + '</p>' +
       ids.map(function (id) {
         var k = fcById(id); if (!k) return '';
@@ -1383,6 +1452,9 @@
       '<div class="filters pref-chips"><button class="chip' + (v === 'es-US' ? ' on' : '') + '" data-act="voice" data-v="es-US">Latin America</button>' +
       '<button class="chip' + (v === 'es-ES' ? ' on' : '') + '" data-act="voice" data-v="es-ES">Spain</button></div>' +
       (WEB && IOS ? '<p class="pref-tip">A clearer voice: Settings → Accessibility → Read &amp; Speak → Voices → Spanish → download an <b>Enhanced</b> or <b>Premium</b> voice (for example Paulina for Latin America, Mónica for Spain). Vamos picks the best one by itself. No sound at all? Check the volume and the silent mode.</p>' : '') + '</div>' +
+      (function () { var t = themePref(); function c(id, label) { return '<button class="chip' + (t === id ? ' on' : '') + '" data-act="theme" data-v="' + id + '">' + label + '</button>'; }
+        return '<div class="pref-row"><div class="pref-label">' + IC.theme + '<span>Appearance<small>' + (t === 'auto' ? 'Follows the light or dark mode of this ' + DEVICE : t === 'light' ? 'Light colours' : 'Dark colours') + '</small></span></div>' +
+          '<div class="filters pref-chips">' + c('dark', 'Dark') + c('light', 'Light') + c('auto', 'Auto') + '</div></div>'; })() +
       (AI.has ? '<button class="menu-item" data-act="ai-sheet">' + IC.spark + '<span>AI tutor (DeepSeek)<small>' + (aiReady() ? 'Ready – explains wrong answers in Chinese' : 'Set up: add your DeepSeek API key') + '</small></span></button>' : '') +
       (SYNC.has ? (function () { var st = syncStatus(); return '<button class="menu-item" data-act="sync-sheet">' + IC.cloud + '<span>Backup file in Google Drive<small>' + (!st.linked ? 'Set up: saves after every session, loads on another device' : st.error ? 'Problem – tap to see' : st.lastSaved ? 'Saved ' + syncWhen(st.lastSaved) + (st.dirty ? ' · changes waiting' : '') : 'Linked · not saved yet') + '</small></span></button>'; })() : '') +
       '<button class="menu-item" data-act="credits">' + IC.info + '<span>About and credits<small>' + (WEB ? 'Version, dictionary, licences' : 'Word recordings, dictionary, licences') + '</small></span></button>';
@@ -1678,6 +1750,7 @@
     filter: function (el) { ui.lib.filter = el.dataset.filter; render(); },
     manage: manageSheet,
     prefs: prefsSheet,
+    theme: function (el) { try { localStorage.setItem(THEME_KEY, el.dataset.v); } catch (e) { } applyTheme(); prefsSheet(); },
     voice: function (el) { setVoicePref(el.dataset.v); prefsSheet(); speak(el.dataset.v === 'es-ES' ? 'Hola, ¿qué tal? Vamos a practicar.' : 'Hola, ¿cómo estás? Vamos a practicar.'); },
     credits: creditsSheet,
     'paste-sheet': pasteSheet,

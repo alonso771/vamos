@@ -2,7 +2,7 @@
   color-scheme: dark;
   --bg: #12111a; --bg-session: #12111a; --surface: #1c1b25; --surface2: #272632; --line: #312f3e;
   --text: #ffffff; --muted: #9c9aad; --purple: #8c5cf2; --purple-d: #6a3fd6; --purple-l: #a984fb;
-  --lav: #e9dffb; --lav-text: #7447d6; --green: #37c88b; --green-d: #1f6e4f; --red: #ff6464; --yellow: #f7c531;
+  --lav: #e9dffb; --lav-text: #7447d6; --green: #37c88b; --green-d: #1f6e4f; --red: #ff6464; --yellow: #f7c531; --track: #3a3a3e;
   --font: "Google Sans", "Product Sans", Roboto, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-zh: "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }
@@ -120,7 +120,7 @@ body[data-view="session"], body[data-view="summary"] { background: var(--bg-sess
 .s-top { display: flex; align-items: center; gap: 14px; padding: 14px 18px 6px; }
 .icon-btn { width: 40px; height: 40px; display: grid; place-items: center; flex: none; margin-left: -8px; }
 .icon-btn svg { width: 26px; height: 26px; }
-.bar { flex: 1; height: 10px; border-radius: 6px; background: #3a3a3e; overflow: hidden; }
+.bar { flex: 1; height: 10px; border-radius: 6px; background: var(--track); overflow: hidden; }
 .bar i { display: block; height: 100%; border-radius: 6px; background: var(--green); transition: width .25s; }
 .count { color: var(--muted); font-size: 14px; font-weight: 600; min-width: 38px; text-align: right; }
 .s-body { flex: 1; overflow-y: auto; padding: 18px 20px 12px; min-height: 0; }
@@ -420,3 +420,71 @@ body[data-view="fc"], body[data-view="fcsum"] { background: var(--bg-session); }
 .sheet ol.tutor-steps { margin: 0 0 6px; padding-left: 22px; color: #c3c1d0; font-size: 14.5px; line-height: 1.5; }
 .sheet ol.tutor-steps li { margin: 3px 0; }
 .tutor-in.masked { -webkit-text-security: disc; }
+
+/* ---------- light theme (1.3.1): Preferences → Appearance (Dark / Light / Auto) sets html.light ---------- */
+html.light { color-scheme: light;
+  --bg: #f5f3fa; --bg-session: #f5f3fa; --surface: #ffffff; --surface2: #ebe8f3; --line: #d9d5e6;
+  --text: #1b1a22; --muted: #6c6981; --purple: #7c4ae8; --purple-d: #5b31c4; --purple-l: #6a3fd6;
+  --lav: #e9dffb; --lav-text: #6a3fd6; --green: #1fa56b; --green-d: #a6dcc3; --red: #e5484d; --yellow: #c98f00; --track: #e3e0ea; }
+html.light .nav { background: #fff; box-shadow: 0 8px 24px rgba(40,30,80,.14); }
+html.light .nav button { color: #55526a; } html.light .nav button.on { color: var(--purple-l); }
+html.light .nav .ni em { box-shadow: 0 0 0 2px #fff; }
+html.light .pill { background: #fff; box-shadow: 0 1px 4px rgba(40,30,80,.1); }
+html.light .pill .flame, html.light .pill.gear { color: #8a879c; } html.light .pill .flame.lit { color: #f08a1c; }
+html.light .trail path { stroke: #e4dcf5; }
+html.light .orb { box-shadow: inset 0 -7px 0 rgba(40,10,110,.28), 0 9px 0 #4d2ba6, 0 14px 18px rgba(60,30,140,.22); }
+html.light .orb:active { box-shadow: inset 0 -7px 0 rgba(40,10,110,.28), 0 4px 0 #4d2ba6, 0 8px 12px rgba(60,30,140,.22); }
+html.light .orb.yellow { box-shadow: inset 0 -7px 0 rgba(150,90,0,.25), 0 9px 0 #b98205, 0 14px 18px rgba(150,90,0,.2); }
+html.light .orb.off { filter: grayscale(1) brightness(1.15); opacity: .6; }
+html.light .start-tag { box-shadow: 0 3px 0 rgba(60,30,140,.16), 0 0 0 1px #e3dcf3; }
+html.light .chip { color: #4a4760; } html.light .chip.on { color: #fff; }
+html.light .row { border-bottom-color: #e6e3ee; }
+html.light .row-q.sm, html.light .s-body h1, html.light .fc-ex-zh, html.light .fc-other span, html.light .note-card small, html.light .bk-state small { color: #5d5a72; }
+html.light .row-a, html.light .d-es, html.light .fc-row-m, html.light .fc-hint, html.light .fc-starred.front-zh .fc-row-w, html.light .ai-head { color: #5b31c4; }
+html.light .star-btn { color: #a5a2b6; }
+html.light .badge { background: #ebe8f3; color: #5d5a72; } html.light .badge.new { background: #ece4ff; color: #6a3fd6; }
+html.light .badge.due { background: #dcf5e9; color: #167a50; } html.light .badge.arch { background: #f7e3e3; color: #a34545; }
+html.light .btn { color: #fff; } html.light .btn.ghost { color: var(--text); box-shadow: 0 4px 0 #d3cfe0; }
+html.light .btn.danger { background: #fde3e3; color: #b42f2f; box-shadow: 0 4px 0 #efc4c4; }
+html.light #answer::placeholder { color: #a9a6b8; }
+html.light .btn-check:disabled { background: #e3e0ea; color: #a3a0b0; }
+html.light .result { box-shadow: 0 -6px 24px rgba(40,30,80,.12); }
+html.light .result.ok { background: #e3f6ec; } html.light .result.bad { background: #fde8e8; }
+html.light .result.ok .r-head, html.light .say-btn { color: #12855a; } html.light .result.bad .r-head { color: #c93c3c; }
+html.light .result.ok .r-head .ic, html.light .result.ok .btn-continue, html.light .sum-row.ok .dot { background: #12855a; color: #fff; }
+html.light .result.bad .r-head .ic, html.light .result.bad .btn-continue, html.light .sum-row.bad .dot { background: #c93c3c; color: #fff; }
+html.light .r-close b { color: #0f7a50; background: rgba(31,165,107,.16); }
+html.light .r-close b.acc, html.light .result.ok .r-close b.acc { color: #8a6000; background: rgba(247,197,49,.32); }
+html.light .say-btn:active, html.light .lw:active { background: rgba(0,0,0,.07); }
+html.light .lw { text-decoration-color: rgba(0,0,0,.3); }
+html.light .r-yours u { color: #c93c3c; background: rgba(229,72,77,.12); }
+html.light .r-note, html.light .ua span::before, html.light .mini, html.light .tool, html.light .days button, html.light .ai-btn { background: rgba(0,0,0,.06); }
+html.light .ai-btn { color: var(--text); }
+html.light .tool.on, html.light .days button.on { background: #1b1a22; color: #fff; }
+html.light .ai-ask { background: linear-gradient(120deg, #8c5cf2, #f2862a); color: #fff; }
+html.light .ai-card { background: rgba(255,255,255,.75); border-color: rgba(0,0,0,.08); }
+html.light .ai-text b, html.light .alt-zh, html.light .fc-other b, html.light .fc-vf b, html.light .fc-via b, html.light .fc-forms, html.light .fc-note,
+html.light .fc-starred.front-zh .fc-row-m, html.light .note-card small svg, html.light .bk-col ul b, html.light .acc-bar button { color: var(--text); }
+html.light .caret, html.light .dots i { background: #6a3fd6; }
+html.light .ai-err, html.light .sheet p.ai-err, html.light .sheet p.bk-warn, html.light .menu-item small.warn { color: #b4541a; }
+html.light .sheet p.pat-note, html.light .sheet p.ai-credit, html.light .sheet p.fc-tip, html.light .sheet p.pref-tip, html.light .note-card .nc-x { color: #7d7a90; }
+html.light .sum-row { border-bottom-color: #e6e3ee; }
+html.light .backdrop { background: rgba(20,15,40,.35); }
+html.light .sheet { background: #fff; } html.light .sheet .grip { background: #d3cfe0; }
+html.light .sheet p, html.light .d-alt, html.light .fc-via, html.light .fc-unblur, html.light .bk-col ul, html.light .sheet ol.tutor-steps { color: #4a4760; }
+html.light textarea.paste, html.light code { background: #f5f3fa; }
+html.light .fc-in { background: #fff; }
+html.light .menu-item, html.light .pref-row { border-bottom-color: #ebe8f3; } html.light .bk-remind { border-top-color: #ebe8f3; }
+html.light #toast { background: #1b1a22; color: #fff; }
+html.light .fc-show { color: #fff; }
+html.light .fc-judge { background: rgba(255,255,255,.97); box-shadow: 0 8px 28px rgba(40,30,80,.18), 0 0 0 1px rgba(0,0,0,.05); }
+html.light .fc-judge button { color: #4a4760; } html.light .fc-judge button:active { background: rgba(0,0,0,.05); } html.light .fc-judge i { background: #e6e3ee; }
+html.light .fc-senses.off { color: #8a879c; } html.light .fc-senses.off .star-btn { color: #b5b2c4; }
+html.light .acc-bar button { box-shadow: 0 2px 0 #d3cfe0; } html.light .acc-bar button:active { color: #fff; }
+html.light .fc-conj tr + tr th, html.light .fc-conj tr + tr td, html.light .fc-ex { border-color: #e0dcea; }
+html.light .fc-ex-es b { color: #a46f00; }
+html.light .note-card, html.light .note-card.install { background: #f1eafd; border-color: #e0d4f7; } html.light .note-card.restore { background: #fff; border-color: #e6e3ee; }
+html.light .bk-state.ok, html.light .bk-col { background: #e3f6ec; } html.light .bk-state.warn { background: #fdf1d8; }
+html.light .sheet p.bk-how, html.light .bk-col small { color: #6c6981; }
+html.light .switch { background: #d3cfe0; } html.light .switch.on { background: var(--green); }
+html.light .stat, html.light .fc-row, html.light .search { box-shadow: 0 1px 4px rgba(40,30,80,.07); }
