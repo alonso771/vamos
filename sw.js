@@ -1,7 +1,7 @@
 /* Vamos web app: keeps all files of the app on the phone, so it opens and works without internet.
    VERSION and FILES are filled in by tools/build_web.py; a new VERSION (any file changed) makes the phone fetch the new
    files and drop the old ones. Requests to other sites (DeepSeek) go straight to the network. */
-var VERSION = "vamos-1.3.3-d9a3df987b";
+var VERSION = "vamos-1.3.4-1027963dd7";
 var REC = 'vamos-rec-v1';     // the recordings saved by Preferences → Offline recordings (app.js); kept across updates
 var FILES = ["./", "app.js", "check.js", "data/dict.js", "data/sentences.js", "data/words.js", "icons/apple-touch-icon.png", "icons/favicon-32.png", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "index.html", "manifest.webmanifest", "online.js", "styles.css", "web.css", "web.js"];
 

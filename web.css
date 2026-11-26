@@ -16,7 +16,8 @@ html.web .result { padding-bottom: max(18px, calc(var(--sb) + 6px)); }
 html.web .sum-foot { padding-bottom: max(20px, calc(var(--sb) + 6px)); }
 html.web .sheet { padding: 10px max(20px, calc(var(--sr) + 12px)) max(22px, calc(var(--sb) + 10px)) max(20px, calc(var(--sl) + 12px)); max-height: calc(100% - var(--st) - 12px); }
 html.web .fc-judge { bottom: max(16px, calc(var(--sb) - 2px)); left: calc(16px + var(--sl)); right: calc(16px + var(--sr)); }
-html.web .fc-back { padding-bottom: max(132px, calc(var(--sb) + 116px)); }
+html.web .fc-foot { bottom: max(16px, calc(var(--sb) - 2px)); left: calc(16px + var(--sl)); right: calc(16px + var(--sr)); }
+html.web .fc-back { padding-bottom: max(236px, calc(var(--sb) + 220px)); }
 html.web #toast { bottom: max(110px, calc(var(--sb) + 104px)); }
 
 /* the keyboard is open: the app takes the part of the screen above it */

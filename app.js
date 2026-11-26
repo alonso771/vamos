@@ -12,8 +12,9 @@
   function dict(o) { var d = Object.create(null); if (o) for (var k in o) d[k] = o[k]; return d; }
   var BUILTIN = (window.SENTENCE_DATA && window.SENTENCE_DATA.sentences) || [];
   var INTERVALS = [1, 5, 10, 15, 20, 30, 60, 90];      // "show again in N days" choices
+  var FC_INTERVALS = [1, 2, 4, 8, 16, 32, 64, 96];     // the same for flash cards (1.3.4)
   var SESSION_SIZE = 10;
-  var VERSION = '1.3.3';
+  var VERSION = '1.3.4';
   var KEY = 'frase-state-v1';
   var Native = window.FraseBridge || window.AndroidBridge || null;
   /* where it runs: the Android app (Java shell) or a browser / the web app on the Home Screen of an iPhone */
@@ -315,12 +316,14 @@
   }
   /* suggested "show again in": wrong -> 1 day. Right -> by how many times in a row it was right (card.run):
      1st time 5, 2nd 10, 3rd 15, then 20, 30, 60, 90 - but never less than one step above a longer interval the user picked last time */
-  function suggestInterval(s, ok) {
-    if (!ok) return INTERVALS[0];
-    var c = peek(s.id), ladder = INTERVALS.slice(1), run = (c.run || 0) + 1, prev = c.ivl || 0;
-    var byRun = ladder[Math.min(run, ladder.length) - 1], above = ladder[ladder.length - 1];
+  function suggestInterval(s, ok) { var c = peek(s.id); return nextInterval(c.run || 0, c.ivl || 0, ok, INTERVALS[0], INTERVALS.slice(1)); }
+  /* the rule, shared with the flash cards: run = right answers in a row before this one, prev = the last interval.
+     Wrong -> `wrong`; right -> the ladder by run, but at least one step above a last interval that is on the ladder or above */
+  function nextInterval(run, prev, ok, wrong, ladder) {
+    if (!ok) return wrong;
+    var byRun = ladder[Math.min(run + 1, ladder.length) - 1], above = ladder[ladder.length - 1];
     for (var i = 0; i < ladder.length; i++) if (ladder[i] > prev) { above = ladder[i]; break; }
-    return prev >= INTERVALS[1] ? Math.max(byRun, above) : byRun;
+    return prev >= ladder[0] ? Math.max(byRun, above) : byRun;
   }
 
   /* ---------------- views ---------------- */
@@ -803,6 +806,9 @@
       seen[k.id] = 1;
       var c = { id: String(k.id), w: k.w.trim(), pos: String(k.pos || ''), info: String(k.info || ''), m: fcList(k.m), note: String(k.note || '').trim(), k: String(k.k || ''),
         seen: +k.seen || 0, ok: +k.ok || 0, bad: +k.bad || 0, last: +k.last || 0 };
+      if (+k.due > 0) c.due = Math.floor(+k.due);                              // the day it comes back (1.3.4); none = new = due
+      if (+k.ivl > 0) c.ivl = Math.floor(+k.ivl);
+      if (+k.run > 0) c.run = Math.floor(+k.run);
       var sel = (Array.isArray(k.sel) ? k.sel : []).map(Number).filter(function (n, i, a) { return n >= 0 && n < c.m.length && n % 1 === 0 && a.indexOf(n) === i; }).sort(function (a, b) { return a - b; });
       if (sel.length && sel.length < c.m.length) c.sel = sel;                 // starred meanings; no sel = all of them
       out.cards.push(c);
@@ -1145,7 +1151,17 @@
   }
 
   /* cards tab */
-  function fcCountText(n) { return n === 1 ? '1 starred word' : n + ' starred words'; }
+  function fcCountText(n) {
+    var t = n === 1 ? '1 starred word' : n + ' starred words'; if (!n) return t;
+    var d = fcDue().length, next = null;
+    if (d) return t + ' · ' + d + ' due';
+    fcCards().forEach(function (k) { if (next == null || k.due < next) next = k.due; });
+    return t + ' · next in ' + days(next - today());
+  }
+  /* due cards: never studied, or their day has come */
+  function fcIsDue(k) { return !k.due || k.due <= today(); }
+  function fcDue() { return fcCards().filter(fcIsDue); }
+  function fcWhen(k) { var d = (k.due || 0) - today(); return d <= 0 ? 'due today' : d === 1 ? 'again tomorrow' : 'again in ' + days(d); }
   function fcSayBtn(w, cls) { return w ? '<button class="fc-say' + (cls ? ' ' + cls : '') + '" data-act="fc-say" data-w="' + esc(w) + '" aria-label="Listen">' + IC.sound + '</button>' : ''; }
   function fcRowHTML(o) {      // o: { w, pos, text, act, id, star, on, tag, say }
     return '<div class="fc-row" data-act="' + o.act + '" data-id="' + esc(o.id) + '"><div class="row-main">' +
@@ -1174,7 +1190,7 @@
   function fcTabHTML() {
     var n = fcCards().length, f = fcFront();
     return '<div class="head-row"><div><h2 class="title">Flash cards</h2><p class="sub">' + fcCountText(n) + '</p></div>' +
-      (n ? '<button class="btn small" data-act="fc-study" style="margin-bottom:18px">' + IC.play + 'Study' + (n > 1 ? ' all ' + n : '') + '</button>' : '') + '</div>' +
+      (n ? (function () { var d = fcDue().length; return '<button class="btn small' + (d ? '' : ' ghost') + '" data-act="fc-study" style="margin-bottom:18px">' + IC.play + (d === n && n > 1 ? 'Study all ' + n : d ? 'Study ' + d : 'Study') + '</button>'; })() : '') + '</div>' +
       '<div class="search">' + IC.search + '<input id="fq" type="search" lang="es" placeholder="Search español or 中文" value="' + esc(FC.q) + '" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>' +
       (n && !FC.q.trim() ? '<div class="filters fc-front-pick"><span>Show first</span><button class="chip' + (f === 'es' ? ' on' : '') + '" data-act="fc-front" data-f="es">Spanish word</button>' +
         '<button class="chip' + (f === 'zh' ? ' on' : '') + '" data-act="fc-front" data-f="zh">Chinese meaning</button></div>' : '') +
@@ -1244,7 +1260,7 @@
   function fcCardSheet(id) {
     var k = fcById(id); if (!k) return;
     if (!FC.db && k.k) fcLoad(function () { if (ui.sheet === 'fc-card') fcCardSheet(id); });      // forms, conjugation, examples
-    var meta = k.seen ? 'Studied ' + k.seen + '× · remembered ' + k.ok + '× · forgot ' + k.bad + '×' : 'Not studied yet';
+    var meta = k.seen ? 'Studied ' + k.seen + '× · remembered ' + k.ok + '× · forgot ' + k.bad + '× · ' + fcWhen(k) : 'Not studied yet · due today';
     var stars = k.m.length > 1 ? { act: 'fc-card-sense', id: id, on: function (n) { return fcSel(k).indexOf(n) >= 0; } } : null;
     var h = fcHeadHTML(k, '') + fcBodyHTML(k, stars, true) + '<div class="d-meta">' + meta + '</div>' +
       (stars ? '<p class="fc-tip">' + IC.starFill + ' Tap a star to choose which meanings you practise. Only the starred ones show in your list.</p>' : '') +
@@ -1281,9 +1297,14 @@
   }
 
   /* study session: every starred card once, in random order; a forgotten card comes back until it is remembered */
-  function fcStart() {
-    var ids = shuffle(fcCards().map(function (k) { return k.id; }));
-    if (!ids.length) return toast('Star some words first.');
+  function fcStart(all) {
+    if (!fcCards().length) return toast('Star some words first.');
+    var ids = shuffle((all === true ? fcCards() : fcDue()).map(function (k) { return k.id; }));
+    if (!ids.length) {
+      var n = fcCards().length, next = Math.min.apply(null, fcCards().map(function (k) { return k.due; })) - today();
+      return openSheet('<h3>All caught up 🎉</h3><p>No card is due today. The next one comes back ' + (next === 1 ? 'tomorrow' : 'in ' + days(next)) + '. You can still study ' + (n === 1 ? 'it' : 'them all') + ' now – the days you choose then count from today.</p>' +
+        '<div class="actions"><button class="btn ghost" data-act="close-sheet">Later</button><button class="btn" data-act="fc-study-all">' + IC.play + 'Study all ' + n + '</button></div>', 'fc-caught');
+    }
     FC.sess = { queue: ids, total: ids.length, done: 0, shown: false, first: {}, order: ids.slice(), drop: {}, front: fcFront() };
     ui.view = 'fc'; closeSheet(); $('#toast').classList.remove('show'); render();
     fcLoad(function () { if (ui.view === 'fc' && FC.sess && FC.sess.shown) render(); });      // forms and examples on the back
@@ -1306,12 +1327,22 @@
     return '<div class="session fc">' + top + '<div class="s-body fc-back">' +
       fcHeadHTML(k, '<button class="star-btn lg' + (s.drop[k.id] ? '' : ' on') + '" data-act="fc-sess-star" aria-label="Starred">' + IC.star + '</button>') +
       (s.drop[k.id] ? '<div class="r-note">Unstarred – this card leaves your list when you go on.</div>' : '') + fcBodyHTML(k, null, true, true) + '</div>' +
-      '<div class="fc-judge"><button class="forgot" data-act="fc-forgot">' + IC.close + '<span>Forgot</span></button><i></i><button class="remember" data-act="fc-remember">' + IC.check + '<span>Remember</span></button></div></div>';
+      '<div class="fc-foot"><div class="r-label">Show again in … days – when you tap Remember</div><div class="days">' +
+      FC_INTERVALS.map(function (d) { return '<button data-act="fc-ivl" data-d="' + d + '" class="' + (s.pick === d ? 'on' : '') + '">' + d + '</button>'; }).join('') + '</div>' +
+      '<div class="fc-judge"><button class="forgot" data-act="fc-forgot">' + IC.close + '<span>Forgot</span></button><i></i><button class="remember" data-act="fc-remember">' + IC.check + '<span>Remember</span></button></div></div></div>';
+  }
+  /* suggested days for the card on screen: forgotten earlier in this session -> 1; else 1, 2, 4 … by right answers in a row */
+  function fcSuggest(k) {
+    if (!k) return FC_INTERVALS[0];
+    if (FC.sess && FC.sess.first[k.id] === false) return FC_INTERVALS[0];
+    return nextInterval(k.run || 0, k.ivl || 0, true, FC_INTERVALS[0], FC_INTERVALS);
   }
   function fcAnswer(ok) {
     var s = FC.sess, k = fcCur(); if (!s || !s.shown || !k) return;
-    var id = k.id, first = !(id in s.first);
-    if (first) { s.first[id] = ok; k.seen++; if (ok) k.ok++; else k.bad++; k.last = today(); }
+    var id = k.id, first = !(id in s.first), t = today();
+    if (first) { s.first[id] = ok; k.seen++; if (ok) k.ok++; else k.bad++; k.last = t; }
+    if (ok) { var d = FC_INTERVALS.indexOf(s.pick) >= 0 ? s.pick : fcSuggest(k); k.ivl = d; k.due = t + d; k.run = s.first[id] === false ? 0 : (k.run || 0) + 1; }
+    else if (first) { k.ivl = 1; k.due = t + 1; k.run = 0; }          // in case the session is left before it is remembered
     s.queue.shift(); s.shown = false;
     if (s.drop[id]) state.fc.cards = fcCards().filter(function (x) { return x.id !== id; });
     else if (!ok) s.queue.splice(Math.min(s.queue.length, 3 + Math.floor(Math.random() * 3)), 0, id);      // comes back a few cards later
@@ -1327,7 +1358,7 @@
       ids.map(function (id) {
         var k = fcById(id); if (!k) return '';
         return '<div class="sum-row ' + (s.first[id] ? 'ok' : 'bad') + '"><span class="dot">' + (s.first[id] ? IC.check : IC.close) + '</span><div class="row-main"><div class="row-a" lang="es" style="margin-top:0">' + esc(fcDisplay(k)) + '</div>' +
-          '<div class="row-q sm" lang="zh-CN">' + esc(fcOn(k).slice(0, 3).join('；')) + '</div></div></div>';
+          '<div class="row-q sm" lang="zh-CN">' + esc(fcOn(k).slice(0, 3).join('；')) + '</div><div class="fc-again">' + fcWhen(k) + '</div></div></div>';
       }).join('') + '</div><div class="sum-foot"><button class="btn ghost" data-act="fc-home">Done</button><button class="btn" data-act="fc-study">Study again</button></div></div>';
   }
   function fcHome() { ui.view = 'tabs'; ui.tab = 'cards'; FC.sess = null; FC.reveal = false; closeSheet(); render(); syncPush(); }
@@ -1367,13 +1398,15 @@
     'fc-edit': function (el) { fcEditSheet(el.dataset.id); },
     'fc-new': function () { fcEditSheet(''); },
     'fc-save': fcSaveEdit,
-    'fc-study': fcStart,
+    'fc-study': function () { fcStart(); },
+    'fc-study-all': function () { fcStart(true); },
+    'fc-ivl': function (el) { if (FC.sess && FC.sess.shown) { FC.sess.pick = +el.dataset.d; Array.prototype.forEach.call(document.querySelectorAll('.fc-foot .days button'),function (b) { b.classList.toggle('on', +b.dataset.d === FC.sess.pick); }); } },
     'fc-front': function (el) {
       var f = el.dataset.f === 'zh' ? 'zh' : 'es';
       state.fc.front = f; save(); FC.reveal = false; render();
       toast(f === 'zh' ? 'Cards now show the Chinese meaning first – you say the Spanish word.' : 'Cards now show the Spanish word first – you say what it means.');
     },
-    'fc-show': function () { if (FC.sess && !FC.sess.shown) { FC.sess.shown = true; render(); var b = $('.fc-back'); if (b) b.scrollTop = 0; } },
+    'fc-show': function () { if (FC.sess && !FC.sess.shown) { FC.sess.shown = true; FC.sess.pick = fcSuggest(fcCur()); render(); var b = $('.fc-back'); if (b) b.scrollTop = 0; } },
     'fc-forgot': function () { fcAnswer(false); },
     'fc-remember': function () { fcAnswer(true); },
     'fc-sess-star': function () { var s = FC.sess, k = fcCur(); if (!k) return; if (s.drop[k.id]) delete s.drop[k.id]; else s.drop[k.id] = 1; render(); },

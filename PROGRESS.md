@@ -2,6 +2,25 @@
 
 Notes for continuing this work later (for you or for Claude).
 
+## 1.3.4 (2026-11-26): flash cards come back after the days you choose – web app only
+User (with Juzi's PROGRESS/README for reference): "for the flashcards study, also add days counter before showing the card
+again. same as for sentences, suggest the next default number of days after a correct answer. for new cards start with 1,
+then go 2, 4, 8, 16, 32, 64, 96". Same design as Juzi Online 2.12/2.13, ported to Vamos's app.js (Vamos came from Juzi 2.10).
+- `FC_INTERVALS = [1, 2, 4, 8, 16, 32, 64, 96]`. `nextInterval(run, prev, ok, wrong, ladder)` is shared: sentences
+  `suggestInterval` = `(c.run, c.ivl, ok, 1, [5 10 15 20 30 60 90])` (unchanged results); cards `fcSuggest` =
+  `(k.run, k.ivl, true, 1, FC_INTERVALS)`, or 1 when the card was forgotten earlier in this session. Right every time:
+  1 2 4 8 16 32 64 96 96; a longer interval chosen by hand is kept (16 → 32 next).
+- Back of a card: floating panel `.fc-foot` = "Show again in … days – when you tap Remember", 8 buttons (`fc-ivl`, choice
+  in `FC.sess.pick`, set by `fc-show`), Forgot / Remember. Remember: `k.ivl` = days, `k.due` = today + days, `k.run` +1 (0 if
+  forgotten earlier in the session). Forgot (first answer): due tomorrow, ivl 1, run 0 (in case the session is left), and
+  the card comes back in the session as before. `fcParse` keeps `due`, `ivl`, `run` (backups).
+- Study = due cards only (no `due` = never studied = due); `fcStart(true)` = all. Tab head "N starred words · d due" /
+  "· next in X days", button "Study d" / "Study all n" (ghost when none due). Nothing due → sheet "All caught up 🎉" with
+  "Study all n" (`fc-study-all`). Summary rows and the card sheet say "due today" / "again tomorrow" / "again in N days".
+- Tests: Playwright with a fake clock (iPhone 14 Pro size): 3 cards starred → 3 due; 1 suggested; 8 buttons; 8 by hand;
+  forgotten card comes back with 1; summary; All caught up; next in 1 day; two days later 2 due, both suggest 2;
+  the ladders checked with the function itself. Light theme: `.fc-foot` styled like `.fc-judge`.
+
 ## 1.3.3 (2026-11-25): "Download all recordings" for offline use – web app only
 User: "Optional 'Download all recordings' button in Preferences: about 30 MB, so every word and sentence works offline".
 - Preferences → Offline recordings (sheet `rec`): Download / Stop / Download the rest / Remove, progress bar, the line in

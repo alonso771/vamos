@@ -19,6 +19,7 @@ This folder is the iPhone version: a web app that you put on the Home Screen. It
 
 Optional:
 - **AI tutor**: in Vamos tap the gear → **AI tutor (DeepSeek)**. The sheet links to the DeepSeek page where you create an API key; paste it there. DeepSeek is the tutor, with the model `deepseek-flash` by default (`deepseek-v4-pro` can be chosen). The key stays on the iPhone.
+- **Flash cards come back after the days you choose** (1.3.4), like sentences: on the back of a card pick 1, 2, 4, 8, 16, 32, 64 or 96 days and tap *Remember* (the next step is pre-selected: a new card 1, then 2, 4, 8 …; 1 if you forgot it earlier in the session). *Forgot* brings it back later in the session and tomorrow. *Study* shows only the cards that are due; when none are, you can still study them all.
 - **Sound** (1.3.2): words play recordings of native speakers (Lingua Libre, 4,534 words) and the 673 sentences of the app play recordings made with the Piper voice “claude” (Mexico). They are heard in silent mode too. They come from the internet, unless you save them all on the iPhone: gear → **Offline recordings** → Download (about 30 MB). Your own sentences, and words without a recording, are read by the iPhone's own Spanish voice, which the silent switch mutes. For a clearer voice: Settings → Accessibility → Read & Speak → Voices → Spanish → download an *Enhanced* or *Premium* voice (for example Paulina); the gear lets you choose Latin America or Spain.
 
 ## Backups
